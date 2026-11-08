@@ -1,13 +1,8 @@
-"""Recipe Box API — BE104 course skeleton.
-
-A working Flask + SQLite CRUD API for recipes. It stores data perfectly —
-and it trusts everyone. There is no authentication and no authorization yet.
-That is the point: you will add both, lesson by lesson, in Units 2 and 3.
-"""
 
 import sqlite3
 
 from flask import Flask, g, jsonify, request
+from werkzeug.security import check_password_hash
 
 DATABASE = "recipes.db"
 
@@ -44,6 +39,35 @@ def hello():
     return jsonify({"message": "Recipe Box API", "recipes": "/recipes"})
 
 
+# LOGIN
+@app.post("/login")
+def login():
+    data = request.get_json(silent=True)
+
+    if not isinstance(data, dict):
+        return jsonify({"error": "a JSON body is required"}), 400
+
+    username = data.get("username")
+    password = data.get("password")
+
+    if not isinstance(username, str) or not isinstance(password, str):
+        return jsonify({"error": "username and password are required"}), 400
+
+    db = get_db()
+    user = db.execute(
+        "SELECT id, username, password_hash FROM users WHERE username = ?",
+        (username,),
+    ).fetchone()
+
+    if not user or not check_password_hash(user["password_hash"], password):
+        return jsonify({"error": "Invalid credentials"}), 401
+
+    return jsonify({
+        "id": user["id"],
+        "username": user["username"],
+    }), 200
+
+
 @app.get("/recipes")
 def list_recipes():
     rows = get_db().execute("SELECT * FROM recipes ORDER BY id").fetchall()
@@ -65,6 +89,7 @@ def create_recipe():
     data = request.get_json(silent=True)
     if not data or not data.get("title") or not data.get("ingredients"):
         return jsonify({"error": "title and ingredients are required"}), 400
+
     db = get_db()
     try:
         cur = db.execute(
@@ -80,6 +105,7 @@ def create_recipe():
         db.commit()
     except sqlite3.IntegrityError:
         return jsonify({"error": "a recipe with that title already exists"}), 409
+
     row = db.execute(
         "SELECT * FROM recipes WHERE id = ?", (cur.lastrowid,)
     ).fetchone()
@@ -91,16 +117,20 @@ def update_recipe(recipe_id):
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "a JSON body is required"}), 400
+
     fields, values = [], []
     for column in ("title", "ingredients", "instructions"):
         if column in data:
             fields.append(f"{column} = ?")
             values.append(data[column])
+
     if "is_public" in data:
         fields.append("is_public = ?")
         values.append(1 if data["is_public"] else 0)
+
     if not fields:
         return jsonify({"error": "nothing to update"}), 400
+
     values.append(recipe_id)
     db = get_db()
     try:
@@ -110,8 +140,10 @@ def update_recipe(recipe_id):
         db.commit()
     except sqlite3.IntegrityError:
         return jsonify({"error": "a recipe with that title already exists"}), 409
+
     if cur.rowcount == 0:
         return jsonify({"error": "recipe not found"}), 404
+
     row = db.execute(
         "SELECT * FROM recipes WHERE id = ?", (recipe_id,)
     ).fetchone()
@@ -123,10 +155,12 @@ def delete_recipe(recipe_id):
     db = get_db()
     cur = db.execute("DELETE FROM recipes WHERE id = ?", (recipe_id,))
     db.commit()
+
     if cur.rowcount == 0:
         return jsonify({"error": "recipe not found"}), 404
+
     return "", 204
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, port=5001)
