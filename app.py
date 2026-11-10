@@ -1,13 +1,24 @@
 
-
+import os
 import sqlite3
+from datetime import datetime, timedelta, timezone
 
+import jwt
+from dotenv import load_dotenv
 from flask import Flask, g, jsonify, request
 from werkzeug.security import check_password_hash, generate_password_hash
+
+# Load environment variables from .env
+load_dotenv()
 
 DATABASE = "recipes.db"
 
 app = Flask(__name__)
+
+JWT_SECRET = os.environ.get("JWT_SECRET")
+
+if not JWT_SECRET:
+    raise RuntimeError("JWT_SECRET is missing from your .env file")
 
 
 def get_db():
@@ -91,7 +102,7 @@ def register():
     }), 201
 
 
-# LOGIN
+# LOGIN - Verify password and generate JWT
 @app.post("/login")
 def login():
     data = request.get_json(silent=True)
@@ -114,9 +125,23 @@ def login():
     if not user or not check_password_hash(user["password_hash"], password):
         return jsonify({"error": "Invalid credentials"}), 401
 
+    # Create JWT token valid for one hour
+    now = datetime.now(timezone.utc)
+
+    payload = {
+        "sub": str(user["id"]),
+        "username": user["username"],
+        "iat": now,
+        "exp": now + timedelta(hours=1),
+    }
+
+    token = jwt.encode(payload, JWT_SECRET, algorithm="HS256")
+
     return jsonify({
         "id": user["id"],
         "username": user["username"],
+        "access_token": token,
+        "token_type": "Bearer",
     }), 200
 
 
