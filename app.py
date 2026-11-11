@@ -1,4 +1,3 @@
-
 import os
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -46,6 +45,46 @@ def recipe_to_dict(row):
     }
 
 
+# JWT AUTHENTICATION
+# Expired or invalid tokens return 401 Unauthorized.
+def authenticate_token():
+    auth_header = request.headers.get("Authorization")
+
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return None, (
+            jsonify({"error": "Missing or invalid token"}), 401
+        )
+
+    token = auth_header.split(" ", 1)[1]
+
+    if not token.strip():
+        return None, (
+            jsonify({"error": "Missing or invalid token"}), 401
+        )
+
+    try:
+        payload = jwt.decode(
+            token,
+            JWT_SECRET,
+            algorithms=["HS256"],
+            options={"require": ["exp", "sub"]},
+        )
+
+    except jwt.ExpiredSignatureError:
+        return None, (
+            jsonify({
+                "error": "Token expired. Please log in again."
+            }), 401
+        )
+
+    except jwt.InvalidTokenError:
+        return None, (
+            jsonify({"error": "Invalid token"}), 401
+        )
+
+    return payload, None
+
+
 @app.get("/")
 def hello():
     return jsonify({
@@ -71,7 +110,9 @@ def register():
         or not isinstance(password, str)
         or not password
     ):
-        return jsonify({"error": "username and password are required"}), 400
+        return jsonify({
+            "error": "username and password are required"
+        }), 400
 
     username = username.strip()
 
@@ -82,7 +123,8 @@ def register():
 
     try:
         cur = db.execute(
-            "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)",
+            "INSERT INTO users (username, email, password_hash) "
+            "VALUES (?, ?, ?)",
             (
                 username,
                 email,
@@ -90,14 +132,20 @@ def register():
             ),
         )
         db.commit()
+
     except sqlite3.IntegrityError as e:
         error = str(e)
 
         if "users.username" in error or "users.email" in error:
-            return jsonify({"error": "username already exists"}), 409
+            return jsonify({
+                "error": "username already exists"
+            }), 409
 
         app.logger.error("Registration database error: %s", error)
-        return jsonify({"error": "registration failed"}), 500
+
+        return jsonify({
+            "error": "registration failed"
+        }), 500
 
     return jsonify({
         "id": cur.lastrowid,
@@ -117,15 +165,21 @@ def login():
     password = data.get("password")
 
     if not isinstance(username, str) or not isinstance(password, str):
-        return jsonify({"error": "username and password are required"}), 400
+        return jsonify({
+            "error": "username and password are required"
+        }), 400
 
     db = get_db()
+
     user = db.execute(
-        "SELECT id, username, password_hash FROM users WHERE username = ?",
+        "SELECT id, username, password_hash "
+        "FROM users WHERE username = ?",
         (username,),
     ).fetchone()
 
-    if not user or not check_password_hash(user["password_hash"], password):
+    if not user or not check_password_hash(
+        user["password_hash"], password
+    ):
         return jsonify({"error": "Invalid credentials"}), 401
 
     # Create JWT token valid for one hour
@@ -138,7 +192,11 @@ def login():
         "exp": now + timedelta(hours=1),
     }
 
-    token = jwt.encode(payload, JWT_SECRET, algorithm="HS256")
+    token = jwt.encode(
+        payload,
+        JWT_SECRET,
+        algorithm="HS256"
+    )
 
     return jsonify({
         "id": user["id"],
@@ -175,31 +233,30 @@ def get_recipe(recipe_id):
 # CREATE RECIPE - JWT required
 @app.post("/recipes")
 def create_recipe():
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return jsonify({"error": "Missing or invalid token"}), 401
+    payload, auth_error = authenticate_token()
 
-    token = auth_header.split(" ", 1)[1]
+    if auth_error is not None:
+        return auth_error
 
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-    except jwt.InvalidTokenError:
-        return jsonify({"error": "Invalid token"}), 401
-
-    user_id = payload.get("sub")
-    # Authenticated user ID (string)
+    # Authenticated user ID
+    user_id = payload["sub"]
 
     data = request.get_json(silent=True)
 
-    if not data or not data.get("title") or not data.get("ingredients"):
-        return jsonify({"error": "title and ingredients are required"}), 400
+    if not isinstance(data, dict) or (
+        not data.get("title") or not data.get("ingredients")
+    ):
+        return jsonify({
+            "error": "title and ingredients are required"
+        }), 400
 
     db = get_db()
 
     try:
         cur = db.execute(
-            "INSERT INTO recipes (title, ingredients, instructions, is_public)"
-            " VALUES (?, ?, ?, ?)",
+            "INSERT INTO recipes "
+            "(title, ingredients, instructions, is_public) "
+            "VALUES (?, ?, ?, ?)",
             (
                 data["title"],
                 data["ingredients"],
@@ -208,11 +265,15 @@ def create_recipe():
             ),
         )
         db.commit()
+
     except sqlite3.IntegrityError:
-        return jsonify({"error": "a recipe with that title already exists"}), 409
+        return jsonify({
+            "error": "a recipe with that title already exists"
+        }), 409
 
     row = db.execute(
-        "SELECT * FROM recipes WHERE id = ?", (cur.lastrowid,)
+        "SELECT * FROM recipes WHERE id = ?",
+        (cur.lastrowid,)
     ).fetchone()
 
     return jsonify(recipe_to_dict(row)), 201
@@ -221,24 +282,20 @@ def create_recipe():
 # UPDATE RECIPE - JWT required
 @app.patch("/recipes/<int:recipe_id>")
 def update_recipe(recipe_id):
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return jsonify({"error": "Missing or invalid token"}), 401
+    payload, auth_error = authenticate_token()
 
-    token = auth_header.split(" ", 1)[1]
+    if auth_error is not None:
+        return auth_error
 
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-    except jwt.InvalidTokenError:
-        return jsonify({"error": "Invalid token"}), 401
-
-    user_id = payload.get("sub")
-    # Authenticated user ID (string)
+    # Authenticated user ID
+    user_id = payload["sub"]
 
     data = request.get_json(silent=True)
 
-    if not data:
-        return jsonify({"error": "a JSON body is required"}), 400
+    if not isinstance(data, dict) or not data:
+        return jsonify({
+            "error": "a JSON body is required"
+        }), 400
 
     fields, values = [], []
 
@@ -255,22 +312,28 @@ def update_recipe(recipe_id):
         return jsonify({"error": "nothing to update"}), 400
 
     values.append(recipe_id)
+
     db = get_db()
 
     try:
         cur = db.execute(
-            f"UPDATE recipes SET {', '.join(fields)} WHERE id = ?",
+            f"UPDATE recipes SET {', '.join(fields)} "
+            "WHERE id = ?",
             values
         )
         db.commit()
+
     except sqlite3.IntegrityError:
-        return jsonify({"error": "a recipe with that title already exists"}), 409
+        return jsonify({
+            "error": "a recipe with that title already exists"
+        }), 409
 
     if cur.rowcount == 0:
         return jsonify({"error": "recipe not found"}), 404
 
     row = db.execute(
-        "SELECT * FROM recipes WHERE id = ?", (recipe_id,)
+        "SELECT * FROM recipes WHERE id = ?",
+        (recipe_id,)
     ).fetchone()
 
     return jsonify(recipe_to_dict(row))
@@ -279,25 +342,21 @@ def update_recipe(recipe_id):
 # DELETE RECIPE - JWT required
 @app.delete("/recipes/<int:recipe_id>")
 def delete_recipe(recipe_id):
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return jsonify({"error": "Missing or invalid token"}), 401
+    payload, auth_error = authenticate_token()
 
-    token = auth_header.split(" ", 1)[1]
+    if auth_error is not None:
+        return auth_error
 
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-    except jwt.InvalidTokenError:
-        return jsonify({"error": "Invalid token"}), 401
-
-    user_id = payload.get("sub")
-    # Authenticated user ID (string)
+    # Authenticated user ID
+    user_id = payload["sub"]
 
     db = get_db()
+
     cur = db.execute(
         "DELETE FROM recipes WHERE id = ?",
         (recipe_id,)
     )
+
     db.commit()
 
     if cur.rowcount == 0:
@@ -306,5 +365,13 @@ def delete_recipe(recipe_id):
     return "", 204
 
 
+# LOGOUT - Stateless JWT
+# Logout is handled by the client deleting its stored token.
+# The server does not maintain or clear a login session.
+# A copied token remains valid until it expires unless
+# server-side token revocation is implemented.
+
+
 if __name__ == "__main__":
     app.run(debug=True, port=5001)
+
