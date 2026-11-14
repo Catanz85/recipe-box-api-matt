@@ -1,4 +1,4 @@
-"""Create and seed recipes.db. Run once after cloning: python init_db.py"""
+"""Create or update the recipes database."""
 
 import sqlite3
 
@@ -8,7 +8,8 @@ CREATE TABLE IF NOT EXISTS recipes (
     title TEXT NOT NULL UNIQUE,
     ingredients TEXT NOT NULL,
     instructions TEXT NOT NULL DEFAULT '',
-    is_public INTEGER NOT NULL DEFAULT 1
+    is_public INTEGER NOT NULL DEFAULT 1,
+    owner_id INTEGER REFERENCES users(id)
 );
 """
 
@@ -34,16 +35,39 @@ SEED = [
 ]
 
 connection = sqlite3.connect("recipes.db")
-connection.executescript(SCHEMA)
-existing = connection.execute("SELECT COUNT(*) FROM recipes").fetchone()[0]
-if existing == 0:
-    connection.executemany(
-        "INSERT INTO recipes (title, ingredients, instructions, is_public)"
-        " VALUES (?, ?, ?, ?)",
-        SEED,
-    )
+
+try:
+    connection.executescript(SCHEMA)
+
+    # Add owner_id to existing databases.
+    columns = [
+        row[1]
+        for row in connection.execute("PRAGMA table_info(recipes)")
+    ]
+
+    if "owner_id" not in columns:
+        connection.execute(
+            "ALTER TABLE recipes ADD COLUMN "
+            "owner_id INTEGER REFERENCES users(id)"
+        )
+        print("Added owner_id to recipes.")
+
+    existing = connection.execute(
+        "SELECT COUNT(*) FROM recipes"
+    ).fetchone()[0]
+
+    if existing == 0:
+        connection.executemany(
+            "INSERT INTO recipes "
+            "(title, ingredients, instructions, is_public) "
+            "VALUES (?, ?, ?, ?)",
+            SEED,
+        )
+        print(f"Seeded {len(SEED)} recipes.")
+    else:
+        print(f"Preserved {existing} existing recipes.")
+
     connection.commit()
-    print(f"Created recipes.db and seeded {len(SEED)} recipes.")
-else:
-    print(f"recipes.db already has {existing} recipes - nothing to do.")
-connection.close()
+
+finally:
+    connection.close()
