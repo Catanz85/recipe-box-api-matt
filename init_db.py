@@ -1,8 +1,17 @@
+
 """Create or update the recipes database."""
 
 import sqlite3
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'user'
+);
+
 CREATE TABLE IF NOT EXISTS recipes (
     id INTEGER PRIMARY KEY,
     title TEXT NOT NULL UNIQUE,
@@ -39,7 +48,20 @@ connection = sqlite3.connect("recipes.db")
 try:
     connection.executescript(SCHEMA)
 
-    # Add owner_id to existing databases.
+    # Add role to existing users table if missing.
+    user_columns = [
+        row[1]
+        for row in connection.execute("PRAGMA table_info(users)")
+    ]
+
+    if "role" not in user_columns:
+        connection.execute(
+            "ALTER TABLE users "
+            "ADD COLUMN role TEXT NOT NULL DEFAULT 'user'"
+        )
+        print("Added role to users.")
+
+    # Add owner_id to existing recipes table if missing.
     columns = [
         row[1]
         for row in connection.execute("PRAGMA table_info(recipes)")

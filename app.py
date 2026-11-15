@@ -174,8 +174,9 @@ def login():
 
     db = get_db()
 
+    # Include role in login query
     user = db.execute(
-        "SELECT id, username, password_hash "
+        "SELECT id, username, password_hash, role "
         "FROM users WHERE username = ?",
         (username,),
     ).fetchone()
@@ -191,6 +192,7 @@ def login():
     payload = {
         "sub": str(user["id"]),
         "username": user["username"],
+        "role": user["role"],
         "iat": now,
         "exp": now + timedelta(hours=1),
     }
@@ -219,7 +221,6 @@ def list_recipes():
     db = get_db()
 
     if auth_error is None:
-        # Authenticated user sees public recipes and their own recipes
         user_id = int(payload["sub"])
 
         rows = db.execute(
@@ -230,7 +231,6 @@ def list_recipes():
         ).fetchall()
 
     else:
-        # Unauthenticated visitors see public recipes only
         rows = db.execute(
             "SELECT * FROM recipes "
             "WHERE is_public = 1 "
@@ -245,7 +245,6 @@ def list_recipes():
 def get_recipe(recipe_id):
     db = get_db()
 
-    # Load the requested recipe
     row = db.execute(
         "SELECT * FROM recipes WHERE id = ?",
         (recipe_id,)
@@ -254,7 +253,7 @@ def get_recipe(recipe_id):
     if row is None:
         return jsonify({"error": "recipe not found"}), 404
 
-    # Anyone can view a public recipe
+    # Anyone can view public recipes
     if row["is_public"] == 1:
         return jsonify(recipe_to_dict(row)), 200
 
@@ -264,7 +263,6 @@ def get_recipe(recipe_id):
     if auth_error is not None:
         return auth_error
 
-    # Only the owner can view a private recipe
     user_id = int(payload["sub"])
 
     if row["owner_id"] != user_id:
@@ -284,7 +282,6 @@ def create_recipe():
     if auth_error is not None:
         return auth_error
 
-    # Authenticated user ID
     user_id = int(payload["sub"])
 
     data = request.get_json(silent=True)
@@ -326,7 +323,7 @@ def create_recipe():
     return jsonify(recipe_to_dict(row)), 201
 
 
-# UPDATE RECIPE - JWT and ownership required
+# UPDATE RECIPE - Owner or admin required
 @app.patch("/recipes/<int:recipe_id>")
 def update_recipe(recipe_id):
     payload, auth_error = authenticate_token()
@@ -334,12 +331,19 @@ def update_recipe(recipe_id):
     if auth_error is not None:
         return auth_error
 
-    # Authenticated user ID
     user_id = int(payload["sub"])
-
     db = get_db()
 
-    # Check whether the recipe exists and who owns it
+    # Check the current role in the database
+    user = db.execute(
+        "SELECT role FROM users WHERE id = ?",
+        (user_id,)
+    ).fetchone()
+
+    if user is None:
+        return jsonify({"error": "Invalid user"}), 401
+
+    # Find the recipe and its owner
     recipe = db.execute(
         "SELECT owner_id FROM recipes WHERE id = ?",
         (recipe_id,)
@@ -348,7 +352,11 @@ def update_recipe(recipe_id):
     if recipe is None:
         return jsonify({"error": "recipe not found"}), 404
 
-    if recipe["owner_id"] != user_id:
+    # Allow the owner OR an admin
+    is_owner = recipe["owner_id"] == user_id
+    is_admin = user["role"] == "admin"
+
+    if not (is_owner or is_admin):
         return jsonify({
             "error": "Forbidden: you do not own this recipe"
         }), 403
@@ -374,12 +382,13 @@ def update_recipe(recipe_id):
     if not fields:
         return jsonify({"error": "nothing to update"}), 400
 
-    values.extend([recipe_id, user_id])
+    # Owner/admin permission was checked above
+    values.append(recipe_id)
 
     try:
         cur = db.execute(
             f"UPDATE recipes SET {', '.join(fields)} "
-            "WHERE id = ? AND owner_id = ?",
+            "WHERE id = ?",
             values
         )
 
@@ -391,9 +400,7 @@ def update_recipe(recipe_id):
         }), 409
 
     if cur.rowcount == 0:
-        return jsonify({
-            "error": "recipe not found or ownership changed"
-        }), 404
+        return jsonify({"error": "recipe not found"}), 404
 
     row = db.execute(
         "SELECT * FROM recipes WHERE id = ?",
@@ -403,7 +410,7 @@ def update_recipe(recipe_id):
     return jsonify(recipe_to_dict(row)), 200
 
 
-# DELETE RECIPE - JWT and ownership required
+# DELETE RECIPE - Owner or admin required
 @app.delete("/recipes/<int:recipe_id>")
 def delete_recipe(recipe_id):
     payload, auth_error = authenticate_token()
@@ -411,12 +418,19 @@ def delete_recipe(recipe_id):
     if auth_error is not None:
         return auth_error
 
-    # Authenticated user ID
     user_id = int(payload["sub"])
-
     db = get_db()
 
-    # Check whether the recipe exists and who owns it
+    # Check the current role in the database
+    user = db.execute(
+        "SELECT role FROM users WHERE id = ?",
+        (user_id,)
+    ).fetchone()
+
+    if user is None:
+        return jsonify({"error": "Invalid user"}), 401
+
+    # Find the recipe and its owner
     recipe = db.execute(
         "SELECT owner_id FROM recipes WHERE id = ?",
         (recipe_id,)
@@ -425,22 +439,25 @@ def delete_recipe(recipe_id):
     if recipe is None:
         return jsonify({"error": "recipe not found"}), 404
 
-    if recipe["owner_id"] != user_id:
+    # Allow the owner OR an admin
+    is_owner = recipe["owner_id"] == user_id
+    is_admin = user["role"] == "admin"
+
+    if not (is_owner or is_admin):
         return jsonify({
             "error": "Forbidden: you do not own this recipe"
         }), 403
 
+    # Delete after authorization succeeds
     cur = db.execute(
-        "DELETE FROM recipes WHERE id = ? AND owner_id = ?",
-        (recipe_id, user_id)
+        "DELETE FROM recipes WHERE id = ?",
+        (recipe_id,)
     )
 
     db.commit()
 
     if cur.rowcount == 0:
-        return jsonify({
-            "error": "recipe not found or ownership changed"
-        }), 404
+        return jsonify({"error": "recipe not found"}), 404
 
     return "", 204
 
