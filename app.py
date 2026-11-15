@@ -2,6 +2,7 @@
 import os
 import sqlite3
 from datetime import datetime, timedelta, timezone
+from functools import wraps
 
 import jwt
 from dotenv import load_dotenv
@@ -84,6 +85,38 @@ def authenticate_token():
         )
 
     return payload, None
+
+
+# REUSABLE AUTHENTICATION DECORATOR
+# Protected routes get the authenticated user's ID and current role.
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        payload, auth_error = authenticate_token()
+
+        if auth_error is not None:
+            return auth_error
+
+        try:
+            user_id = int(payload["sub"])
+        except (ValueError, TypeError, KeyError):
+            return jsonify({"error": "Invalid token"}), 401
+
+        db = get_db()
+        user = db.execute(
+            "SELECT role FROM users WHERE id = ?",
+            (user_id,)
+        ).fetchone()
+
+        if user is None:
+            return jsonify({"error": "Invalid user"}), 401
+
+        g.user_id = user_id
+        g.is_admin = user["role"] == "admin"
+
+        return f(*args, **kwargs)
+
+    return decorated
 
 
 @app.get("/")
@@ -276,13 +309,9 @@ def get_recipe(recipe_id):
 # CREATE RECIPE - JWT required
 # New recipes are assigned to their authenticated creator.
 @app.post("/recipes")
+@token_required
 def create_recipe():
-    payload, auth_error = authenticate_token()
-
-    if auth_error is not None:
-        return auth_error
-
-    user_id = int(payload["sub"])
+    user_id = g.user_id
 
     data = request.get_json(silent=True)
 
@@ -325,23 +354,10 @@ def create_recipe():
 
 # UPDATE RECIPE - Owner or admin required
 @app.patch("/recipes/<int:recipe_id>")
+@token_required
 def update_recipe(recipe_id):
-    payload, auth_error = authenticate_token()
-
-    if auth_error is not None:
-        return auth_error
-
-    user_id = int(payload["sub"])
+    user_id = g.user_id
     db = get_db()
-
-    # Check the current role in the database
-    user = db.execute(
-        "SELECT role FROM users WHERE id = ?",
-        (user_id,)
-    ).fetchone()
-
-    if user is None:
-        return jsonify({"error": "Invalid user"}), 401
 
     # Find the recipe and its owner
     recipe = db.execute(
@@ -354,7 +370,7 @@ def update_recipe(recipe_id):
 
     # Allow the owner OR an admin
     is_owner = recipe["owner_id"] == user_id
-    is_admin = user["role"] == "admin"
+    is_admin = g.is_admin
 
     if not (is_owner or is_admin):
         return jsonify({
@@ -412,23 +428,10 @@ def update_recipe(recipe_id):
 
 # DELETE RECIPE - Owner or admin required
 @app.delete("/recipes/<int:recipe_id>")
+@token_required
 def delete_recipe(recipe_id):
-    payload, auth_error = authenticate_token()
-
-    if auth_error is not None:
-        return auth_error
-
-    user_id = int(payload["sub"])
+    user_id = g.user_id
     db = get_db()
-
-    # Check the current role in the database
-    user = db.execute(
-        "SELECT role FROM users WHERE id = ?",
-        (user_id,)
-    ).fetchone()
-
-    if user is None:
-        return jsonify({"error": "Invalid user"}), 401
 
     # Find the recipe and its owner
     recipe = db.execute(
@@ -441,7 +444,7 @@ def delete_recipe(recipe_id):
 
     # Allow the owner OR an admin
     is_owner = recipe["owner_id"] == user_id
-    is_admin = user["role"] == "admin"
+    is_admin = g.is_admin
 
     if not (is_owner or is_admin):
         return jsonify({
