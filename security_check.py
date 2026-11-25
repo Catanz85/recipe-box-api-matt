@@ -7,18 +7,20 @@ import uuid
 import app as api
 
 results = []
-original_db = api.DATABASE
+original_db = "recipes.db"
+
 
 def check(name, actual, expected):
     status = "PASS" if actual == expected else "FAIL"
     results.append((name, actual, expected, status))
     print(f"{name}: {actual} — {status}")
 
+
 with tempfile.TemporaryDirectory() as temp:
     test_db = os.path.join(temp, "recipes.db")
     shutil.copy2(original_db, test_db)
-    api.DATABASE = test_db
-    client = api.app.test_client()
+
+    client = api.create_app(database=test_db).test_client()
 
     password = uuid.uuid4().hex
     prefix = uuid.uuid4().hex[:10]
@@ -99,15 +101,16 @@ with tempfile.TemporaryDirectory() as temp:
         ).fetchone()[0]
 
     check("Password hash present", "password_hash" in columns, True)
+
     check("Plaintext password column absent",
           "password" not in columns, True)
+
     check("Plaintext password not stored",
           stored != password, True)
 
     check("Admin deleting another user's recipe",
           client.delete(url, headers=admin_token).status_code, 204)
 
-api.DATABASE = original_db
 
 passed = all(row[3] == "PASS" for row in results)
 
