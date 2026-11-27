@@ -13,3 +13,9 @@ class User(db.Model):
         nullable=False,
         server_default=db.text("'user'")
     )
+
+    recipes = db.relationship(
+        "Recipe",
+        back_populates="owner",
+        order_by="Recipe.id"
+    )

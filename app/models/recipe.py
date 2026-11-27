@@ -22,3 +22,8 @@ class Recipe(db.Model):
         db.ForeignKey("users.id"),
         nullable=True
     )
+
+    owner = db.relationship(
+        "User",
+        back_populates="recipes"
+    )

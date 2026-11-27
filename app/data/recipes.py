@@ -1,7 +1,7 @@
 from sqlalchemy import select, or_, func, null
 from sqlalchemy.exc import IntegrityError
 from app.extensions import db
-from app.models import Recipe
+from app.models import Recipe, User
 
 
 class RecipeConflict(Exception):
@@ -14,7 +14,7 @@ def visibility_filter(user_id=None):
 
     return or_(
         Recipe.is_public == 1,
-        Recipe.owner_id == user_id
+        Recipe.owner.has(User.id == user_id)
     )
 
 

@@ -32,12 +32,16 @@ def find_recipe(recipe_id):
     return row
 
 
+def recipe_owner_id(row):
+    return row.owner.id if row.owner is not None else None
+
+
 def requires_authentication(row):
     return row.is_public != 1
 
 
 def read_recipe(row, user_id=None):
-    if requires_authentication(row) and row.owner_id != user_id:
+    if requires_authentication(row) and recipe_owner_id(row) != user_id:
         raise RecipeError(
             "forbidden",
             "Forbidden: you do not own this recipe"
@@ -47,7 +51,7 @@ def read_recipe(row, user_id=None):
 
 
 def require_owner_or_admin(row, user_id, is_admin):
-    if not (row.owner_id == user_id or is_admin):
+    if not (recipe_owner_id(row) == user_id or is_admin):
         raise RecipeError(
             "forbidden",
             "Forbidden: you do not own this recipe"

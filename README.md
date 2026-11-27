@@ -79,3 +79,20 @@ See ORM_WRITE_TEST_RESULTS.md for verification evidence.
 Run the isolated ORM write smoke test with:
 
     python orm_write_check.py
+
+## ORM Relationships
+
+User.recipes and Recipe.owner provide bidirectional
+one-to-many and many-to-one ORM navigation.
+
+Ownership checks use relationship navigation, and visibility
+queries use relationship-based filtering without explicit joins.
+
+Foreign-key enforcement rejects nonexistent owners while
+preserving valid and nullable owner relationships.
+
+See ORM_RELATIONSHIP_TEST_RESULTS.md for verification evidence.
+
+Run the isolated relationship verification with:
+
+    python orm_relationship_check.py
