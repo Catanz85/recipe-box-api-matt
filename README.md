@@ -37,3 +37,17 @@ curl -X DELETE http://127.0.0.1:5000/recipes/1
 `is_public` is stored on every recipe but nothing enforces it yet - by the end
 of Unit 3, private recipes will only be visible to their owners.
 Notes: Matt’s local dev instance.
+
+## SQLAlchemy Integration
+
+Flask-SQLAlchemy is initialized through the application factory
+using the extension in app/extensions.py.
+
+The User and Recipe models in app/models map the existing
+SQLite tables. Both ORM and raw SQL connections use the same
+configured database path.
+
+The ORM is used for read-only verification in this lesson.
+Existing endpoint queries remain in the app/data modules.
+
+See ORM_TEST_RESULTS.md for verification evidence.
