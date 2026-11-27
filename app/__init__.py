@@ -1,20 +1,42 @@
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify
 
-from app.data.database import DEFAULT_DATABASE, get_db, close_db
+from app.config import CONFIGS
+from app.data.database import get_db, close_db
 from app.middleware import authenticate_token, token_required
 from app.routes.auth import create_auth_bp
 from app.routes.recipes import create_recipes_bp
 
 
-def create_app(database=DEFAULT_DATABASE):
+def create_app(config="development", database=None):
     load_dotenv()
 
     app = Flask(__name__)
 
-    app.config["DATABASE"] = database
+    # Preserve compatibility with existing positional database paths.
+    if config not in CONFIGS:
+        if database is not None:
+            raise ValueError("Invalid configuration selector")
+        database = config
+        config = "development"
+
+    app.config.from_object(CONFIGS[config])
+
+    if config == "testing":
+        if database is not None:
+            raise ValueError("Testing uses its own disposable database")
+
+        Path(app.instance_path).mkdir(parents=True, exist_ok=True)
+
+        app.config["DATABASE"] = str(
+            Path(app.instance_path) / app.config["DATABASE"]
+        )
+
+    elif database is not None:
+        app.config["DATABASE"] = database
     app.config["JWT_SECRET"] = os.environ.get("JWT_SECRET")
 
     if not app.config["JWT_SECRET"]:
