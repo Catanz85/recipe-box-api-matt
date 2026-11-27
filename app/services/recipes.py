@@ -126,3 +126,48 @@ def count_recipes(db, user_id=None):
     return {
         "count": repository.count_visible(db, user_id)
     }
+
+
+def orm_recipe_to_dict(recipe):
+    return {
+        "id": recipe.id,
+        "title": recipe.title,
+        "ingredients": recipe.ingredients,
+        "instructions": recipe.instructions,
+        "is_public": bool(recipe.is_public),
+    }
+
+
+def list_recipes_orm(user_id=None):
+    recipes = repository.list_visible_orm(user_id)
+
+    return [
+        orm_recipe_to_dict(recipe)
+        for recipe in recipes
+    ]
+
+
+def find_recipe_orm(recipe_id):
+    recipe = repository.get_by_id_orm(recipe_id)
+
+    if recipe is None:
+        raise RecipeError("not_found", "recipe not found")
+
+    return recipe
+
+
+def requires_authentication_orm(recipe):
+    return recipe.is_public != 1
+
+
+def read_recipe_orm(recipe, user_id=None):
+    if (
+        requires_authentication_orm(recipe)
+        and recipe.owner_id != user_id
+    ):
+        raise RecipeError(
+            "forbidden",
+            "Forbidden: you do not own this recipe"
+        )
+
+    return orm_recipe_to_dict(recipe)

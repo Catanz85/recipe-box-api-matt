@@ -51,3 +51,13 @@ The ORM is used for read-only verification in this lesson.
 Existing endpoint queries remain in the app/data modules.
 
 See ORM_TEST_RESULTS.md for verification evidence.
+
+## ORM Recipe Reads
+
+The recipe list and detail endpoints now use SQLAlchemy ORM
+queries through the existing data and service layers.
+
+Recipe creation, updates, deletion, and the count endpoint
+retain their existing raw SQL implementations.
+
+See ORM_READ_TEST_RESULTS.md for verification evidence.

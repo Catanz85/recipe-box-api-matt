@@ -20,7 +20,7 @@ def create_recipes_bp(get_db, authenticate_token, token_required):
         payload, auth_error = authenticate_token()
         user_id = int(payload["sub"]) if auth_error is None else None
 
-        result = service.list_recipes(get_db(), user_id)
+        result = service.list_recipes_orm(user_id)
         return jsonify(result), 200
 
     @recipes_bp.get("/recipes/count")
@@ -41,10 +41,10 @@ def create_recipes_bp(get_db, authenticate_token, token_required):
 
     @recipes_bp.get("/recipes/<int:recipe_id>")
     def get_recipe(recipe_id):
-        row = service.find_recipe(get_db(), recipe_id)
+        row = service.find_recipe_orm(recipe_id)
         user_id = None
 
-        if service.requires_authentication(row):
+        if service.requires_authentication_orm(row):
             payload, auth_error = authenticate_token()
 
             if auth_error is not None:
@@ -52,7 +52,7 @@ def create_recipes_bp(get_db, authenticate_token, token_required):
 
             user_id = int(payload["sub"])
 
-        return jsonify(service.read_recipe(row, user_id)), 200
+        return jsonify(service.read_recipe_orm(row, user_id)), 200
 
     @recipes_bp.post("/recipes")
     @token_required

@@ -1,5 +1,9 @@
 import sqlite3
 
+from sqlalchemy import select, or_
+from app.extensions import db as orm_db
+from app.models import Recipe
+
 
 class RecipeConflict(Exception):
     pass
@@ -96,3 +100,27 @@ def count_visible(db, user_id=None):
         ).fetchone()
 
     return row[0]
+
+
+def list_visible_orm(user_id=None):
+    statement = select(Recipe)
+
+    if user_id is None:
+        statement = statement.where(
+            Recipe.is_public == 1
+        )
+    else:
+        statement = statement.where(
+            or_(
+                Recipe.is_public == 1,
+                Recipe.owner_id == user_id
+            )
+        )
+
+    statement = statement.order_by(Recipe.id)
+
+    return orm_db.session.scalars(statement).all()
+
+
+def get_by_id_orm(recipe_id):
+    return orm_db.session.get(Recipe, recipe_id)
