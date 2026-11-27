@@ -2,7 +2,7 @@ from flask import Blueprint, g, jsonify, request
 from app.services import recipes as service
 
 
-def create_recipes_bp(get_db, authenticate_token, token_required):
+def create_recipes_bp(authenticate_token, token_required):
     recipes_bp = Blueprint("recipes", __name__)
 
     @recipes_bp.errorhandler(service.RecipeError)
@@ -20,7 +20,7 @@ def create_recipes_bp(get_db, authenticate_token, token_required):
         payload, auth_error = authenticate_token()
         user_id = int(payload["sub"]) if auth_error is None else None
 
-        result = service.list_recipes_orm(user_id)
+        result = service.list_recipes(user_id)
         return jsonify(result), 200
 
     @recipes_bp.get("/recipes/count")
@@ -34,17 +34,17 @@ def create_recipes_bp(get_db, authenticate_token, token_required):
         )
 
         result = service.count_recipes(
-            get_db(), user_id
+            user_id
         )
 
         return jsonify(result), 200
 
     @recipes_bp.get("/recipes/<int:recipe_id>")
     def get_recipe(recipe_id):
-        row = service.find_recipe_orm(recipe_id)
+        row = service.find_recipe(recipe_id)
         user_id = None
 
-        if service.requires_authentication_orm(row):
+        if service.requires_authentication(row):
             payload, auth_error = authenticate_token()
 
             if auth_error is not None:
@@ -52,13 +52,12 @@ def create_recipes_bp(get_db, authenticate_token, token_required):
 
             user_id = int(payload["sub"])
 
-        return jsonify(service.read_recipe_orm(row, user_id)), 200
+        return jsonify(service.read_recipe(row, user_id)), 200
 
     @recipes_bp.post("/recipes")
     @token_required
     def create_recipe():
         result = service.create_recipe(
-            get_db(),
             request.get_json(silent=True),
             g.user_id
         )
@@ -68,7 +67,6 @@ def create_recipes_bp(get_db, authenticate_token, token_required):
     @token_required
     def update_recipe(recipe_id):
         result = service.update_recipe(
-            get_db(),
             recipe_id,
             request.get_json(silent=True),
             g.user_id,
@@ -80,7 +78,6 @@ def create_recipes_bp(get_db, authenticate_token, token_required):
     @token_required
     def delete_recipe(recipe_id):
         service.delete_recipe(
-            get_db(),
             recipe_id,
             g.user_id,
             g.is_admin

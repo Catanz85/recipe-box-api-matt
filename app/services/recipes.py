@@ -10,21 +10,21 @@ class RecipeError(Exception):
 
 def recipe_to_dict(row):
     return {
-        "id": row["id"],
-        "title": row["title"],
-        "ingredients": row["ingredients"],
-        "instructions": row["instructions"],
-        "is_public": bool(row["is_public"]),
+        "id": row.id,
+        "title": row.title,
+        "ingredients": row.ingredients,
+        "instructions": row.instructions,
+        "is_public": bool(row.is_public),
     }
 
 
-def list_recipes(db, user_id=None):
-    rows = repository.list_visible(db, user_id)
+def list_recipes(user_id=None):
+    rows = repository.list_visible(user_id)
     return [recipe_to_dict(row) for row in rows]
 
 
-def find_recipe(db, recipe_id):
-    row = repository.get_by_id(db, recipe_id)
+def find_recipe(recipe_id):
+    row = repository.get_by_id(recipe_id)
 
     if row is None:
         raise RecipeError("not_found", "recipe not found")
@@ -33,11 +33,11 @@ def find_recipe(db, recipe_id):
 
 
 def requires_authentication(row):
-    return row["is_public"] != 1
+    return row.is_public != 1
 
 
 def read_recipe(row, user_id=None):
-    if requires_authentication(row) and row["owner_id"] != user_id:
+    if requires_authentication(row) and row.owner_id != user_id:
         raise RecipeError(
             "forbidden",
             "Forbidden: you do not own this recipe"
@@ -47,14 +47,14 @@ def read_recipe(row, user_id=None):
 
 
 def require_owner_or_admin(row, user_id, is_admin):
-    if not (row["owner_id"] == user_id or is_admin):
+    if not (row.owner_id == user_id or is_admin):
         raise RecipeError(
             "forbidden",
             "Forbidden: you do not own this recipe"
         )
 
 
-def create_recipe(db, data, user_id):
+def create_recipe(data, user_id):
     if not isinstance(data, dict) or (
         not data.get("title") or not data.get("ingredients")
     ):
@@ -71,7 +71,7 @@ def create_recipe(db, data, user_id):
     }
 
     try:
-        row = repository.insert(db, fields, user_id)
+        row = repository.insert(fields, user_id)
     except repository.RecipeConflict:
         raise RecipeError(
             "conflict",
@@ -81,8 +81,8 @@ def create_recipe(db, data, user_id):
     return recipe_to_dict(row)
 
 
-def update_recipe(db, recipe_id, data, user_id, is_admin):
-    row = find_recipe(db, recipe_id)
+def update_recipe(recipe_id, data, user_id, is_admin):
+    row = find_recipe(recipe_id)
     require_owner_or_admin(row, user_id, is_admin)
 
     if not isinstance(data, dict) or not data:
@@ -101,7 +101,7 @@ def update_recipe(db, recipe_id, data, user_id, is_admin):
         raise RecipeError("invalid", "nothing to update")
 
     try:
-        row = repository.update(db, recipe_id, fields)
+        row = repository.update(recipe_id, fields)
     except repository.RecipeConflict:
         raise RecipeError(
             "conflict",
@@ -114,60 +114,15 @@ def update_recipe(db, recipe_id, data, user_id, is_admin):
     return recipe_to_dict(row)
 
 
-def delete_recipe(db, recipe_id, user_id, is_admin):
-    row = find_recipe(db, recipe_id)
+def delete_recipe(recipe_id, user_id, is_admin):
+    row = find_recipe(recipe_id)
     require_owner_or_admin(row, user_id, is_admin)
 
-    if repository.delete(db, recipe_id) == 0:
+    if repository.delete(recipe_id) == 0:
         raise RecipeError("not_found", "recipe not found")
 
 
-def count_recipes(db, user_id=None):
+def count_recipes(user_id=None):
     return {
-        "count": repository.count_visible(db, user_id)
+        "count": repository.count_visible(user_id)
     }
-
-
-def orm_recipe_to_dict(recipe):
-    return {
-        "id": recipe.id,
-        "title": recipe.title,
-        "ingredients": recipe.ingredients,
-        "instructions": recipe.instructions,
-        "is_public": bool(recipe.is_public),
-    }
-
-
-def list_recipes_orm(user_id=None):
-    recipes = repository.list_visible_orm(user_id)
-
-    return [
-        orm_recipe_to_dict(recipe)
-        for recipe in recipes
-    ]
-
-
-def find_recipe_orm(recipe_id):
-    recipe = repository.get_by_id_orm(recipe_id)
-
-    if recipe is None:
-        raise RecipeError("not_found", "recipe not found")
-
-    return recipe
-
-
-def requires_authentication_orm(recipe):
-    return recipe.is_public != 1
-
-
-def read_recipe_orm(recipe, user_id=None):
-    if (
-        requires_authentication_orm(recipe)
-        and recipe.owner_id != user_id
-    ):
-        raise RecipeError(
-            "forbidden",
-            "Forbidden: you do not own this recipe"
-        )
-
-    return orm_recipe_to_dict(recipe)

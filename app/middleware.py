@@ -3,7 +3,6 @@ from functools import wraps
 import jwt
 from flask import current_app, g, jsonify, request
 
-from app.data.database import get_db
 from app.data.users import get_role
 
 
@@ -58,7 +57,7 @@ def token_required(f):
         except (ValueError, TypeError, KeyError):
             return jsonify({"error": "Invalid token"}), 401
 
-        user = get_role(get_db(), user_id)
+        user = get_role(user_id)
 
         if user is None:
             return jsonify({"error": "Invalid user"}), 401

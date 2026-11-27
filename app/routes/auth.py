@@ -3,7 +3,7 @@ from flask import Blueprint, jsonify, request
 from app.services import auth_service as service
 
 
-def create_auth_bp(app, get_db, JWT_SECRET):
+def create_auth_bp(app, JWT_SECRET):
     auth_bp = Blueprint("auth", __name__)
 
     @auth_bp.errorhandler(service.AuthError)
@@ -35,7 +35,6 @@ def create_auth_bp(app, get_db, JWT_SECRET):
             }), 400
 
         result = service.register_user(
-            get_db(),
             data.get("username"),
             data.get("password")
         )
@@ -52,7 +51,6 @@ def create_auth_bp(app, get_db, JWT_SECRET):
             }), 400
 
         result = service.authenticate_user(
-            get_db(),
             data.get("username"),
             data.get("password"),
             JWT_SECRET

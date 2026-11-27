@@ -18,7 +18,7 @@ class AuthError(Exception):
         super().__init__(message)
 
 
-def register_user(db, username, password):
+def register_user(username, password):
     if (
         not isinstance(username, str)
         or not username.strip()
@@ -37,7 +37,6 @@ def register_user(db, username, password):
 
     try:
         user_id = repository.create_user(
-            db,
             username,
             email,
             password_hash
@@ -67,7 +66,7 @@ def register_user(db, username, password):
     }
 
 
-def authenticate_user(db, username, password, jwt_secret):
+def authenticate_user(username, password, jwt_secret):
     if (
         not isinstance(username, str)
         or not isinstance(password, str)
@@ -77,7 +76,7 @@ def authenticate_user(db, username, password, jwt_secret):
             "username and password are required"
         )
 
-    user = repository.find_by_username(db, username)
+    user = repository.find_by_username(username)
 
     if not user or not check_password_hash(
         user["password_hash"], password

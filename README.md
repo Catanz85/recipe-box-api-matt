@@ -61,3 +61,21 @@ Recipe creation, updates, deletion, and the count endpoint
 retain their existing raw SQL implementations.
 
 See ORM_READ_TEST_RESULTS.md for verification evidence.
+
+## Full ORM Conversion
+
+All application-level database operations now use SQLAlchemy ORM,
+including recipe CRUD, recipe counts, user registration,
+authentication lookups, and role verification.
+
+Transactions use commit and rollback handling. Database
+initialization uses ORM table creation and seed records.
+
+The remaining SQLite connection event enables foreign-key
+enforcement and is not an application-level SQL query.
+
+See ORM_WRITE_TEST_RESULTS.md for verification evidence.
+
+Run the isolated ORM write smoke test with:
+
+    python orm_write_check.py

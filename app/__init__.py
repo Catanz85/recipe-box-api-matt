@@ -7,7 +7,6 @@ from flask import Flask, jsonify
 from app.config import CONFIGS
 from app.extensions import db
 from app.models import User, Recipe
-from app.data.database import get_db, close_db
 from app.middleware import authenticate_token, token_required
 from app.routes.auth import create_auth_bp
 from app.routes.recipes import create_recipes_bp
@@ -51,7 +50,6 @@ def create_app(config="development", database=None):
     if not app.config["JWT_SECRET"]:
         raise RuntimeError("JWT_SECRET is missing from your .env file")
 
-    app.teardown_appcontext(close_db)
 
     @app.get("/")
     def hello():
@@ -62,12 +60,10 @@ def create_app(config="development", database=None):
 
     auth_bp = create_auth_bp(
         app,
-        get_db,
         app.config["JWT_SECRET"]
     )
 
     recipes_bp = create_recipes_bp(
-        get_db,
         authenticate_token,
         token_required
     )
