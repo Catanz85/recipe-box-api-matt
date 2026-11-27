@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify
 
 from app.config import CONFIGS
-from app.extensions import cache, db, migrate
+from app.extensions import cache, db, migrate, limiter
 from app.models import User, Recipe
 from app.middleware import authenticate_token, token_required
 from app.routes.auth import create_auth_bp
@@ -51,6 +51,7 @@ def create_app(config="development", database=None):
     db.init_app(app)
     migrate.init_app(app, db)
     cache.init_app(app)
+    limiter.init_app(app)
 
     app.config["JWT_SECRET"] = os.environ.get("JWT_SECRET")
 

@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 
 from app.services import auth_service as service
+from app.extensions import limiter
 
 
 def create_auth_bp(app, JWT_SECRET):
@@ -26,6 +27,7 @@ def create_auth_bp(app, JWT_SECRET):
         }), statuses[error.code]
 
     @auth_bp.post("/register")
+    @limiter.limit("3 per minute")
     def register():
         data = request.get_json(silent=True)
 
@@ -42,6 +44,7 @@ def create_auth_bp(app, JWT_SECRET):
         return jsonify(result), 201
 
     @auth_bp.post("/login")
+    @limiter.limit("5 per minute")
     def login():
         data = request.get_json(silent=True)
 
