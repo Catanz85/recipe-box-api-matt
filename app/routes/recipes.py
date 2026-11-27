@@ -1,5 +1,10 @@
 from flask import Blueprint, g, jsonify, request
+from app.extensions import cache
 from app.services import recipes as service
+
+
+PUBLIC_RECIPE_LIST_CACHE_KEY = "public_recipe_list"
+PUBLIC_RECIPE_LIST_CACHE_TIMEOUT = 30
 
 
 def create_recipes_bp(authenticate_token, token_required):
@@ -20,7 +25,18 @@ def create_recipes_bp(authenticate_token, token_required):
         payload, auth_error = authenticate_token()
         user_id = int(payload["sub"]) if auth_error is None else None
 
-        result = service.list_recipes(user_id)
+        if user_id is None:
+            result = cache.get(PUBLIC_RECIPE_LIST_CACHE_KEY)
+            if result is None:
+                result = service.list_recipes()
+                cache.set(
+                    PUBLIC_RECIPE_LIST_CACHE_KEY,
+                    result,
+                    timeout=PUBLIC_RECIPE_LIST_CACHE_TIMEOUT
+                )
+        else:
+            result = service.list_recipes(user_id)
+
         return jsonify(result), 200
 
     @recipes_bp.get("/recipes/count")
@@ -61,6 +77,7 @@ def create_recipes_bp(authenticate_token, token_required):
             request.get_json(silent=True),
             g.user_id
         )
+        cache.delete(PUBLIC_RECIPE_LIST_CACHE_KEY)
         return jsonify(result), 201
 
     @recipes_bp.patch("/recipes/<int:recipe_id>")
@@ -72,6 +89,7 @@ def create_recipes_bp(authenticate_token, token_required):
             g.user_id,
             g.is_admin
         )
+        cache.delete(PUBLIC_RECIPE_LIST_CACHE_KEY)
         return jsonify(result), 200
 
     @recipes_bp.delete("/recipes/<int:recipe_id>")
@@ -82,6 +100,7 @@ def create_recipes_bp(authenticate_token, token_required):
             g.user_id,
             g.is_admin
         )
+        cache.delete(PUBLIC_RECIPE_LIST_CACHE_KEY)
         return "", 204
 
     return recipes_bp

@@ -96,3 +96,24 @@ See ORM_RELATIONSHIP_TEST_RESULTS.md for verification evidence.
 Run the isolated relationship verification with:
 
     python orm_relationship_check.py
+
+## Recipe List Caching
+
+The public GET /recipes result uses Flask-Caching's SimpleCache with a
+30-second timeout. Authenticated lists bypass the shared cache, and successful
+recipe writes invalidate the public-list entry.
+
+Verification:
+
+- Three consecutive `curl http://127.0.0.1:5000/recipes` requests returned
+  HTTP 200 in 0.007157s, 0.001132s, and 0.001188s.
+- Isolated checks confirmed authenticated lists bypass the cache and anonymous
+  lists exclude private recipes.
+- Feature, isolation, and security checks passed (10/10, 24/24, and PASS).
+- The acceptance check remains 41/50 at both HEAD and with caching: nine
+  assertions expect recipe fields without `description`, which the existing
+  API response includes.
+- The ORM write and relationship checks stop at their existing database
+  fingerprint guard in both versions. They expect SHA256
+  `3cc0e8c7f2cc928ba0c41eda669b1cca05f26fcaf5aa1e0bb6cd0e0cf47c8440`;
+  the local database snapshot is `c5cb545d595efb58b5367f9b242de772839cf416aa754a0a68f433274277454f`.

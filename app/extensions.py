@@ -2,11 +2,13 @@ import sqlite3
 
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from flask_caching import Cache
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
 db = SQLAlchemy()
 migrate = Migrate()
+cache = Cache()
 
 
 @event.listens_for(Engine, "connect")
