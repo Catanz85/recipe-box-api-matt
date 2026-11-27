@@ -12,6 +12,7 @@ def recipe_to_dict(row):
     return {
         "id": row.id,
         "title": row.title,
+        "description": row.description,
         "ingredients": row.ingredients,
         "instructions": row.instructions,
         "is_public": bool(row.is_public),
@@ -67,7 +68,11 @@ def create_recipe(data, user_id):
             "title and ingredients are required"
         )
 
+    if not isinstance(data.get("description", ""), str):
+        raise RecipeError("invalid", "description must be a string")
+
     fields = {
+        "description": data.get("description", ""),
         "title": data["title"],
         "ingredients": data["ingredients"],
         "instructions": data.get("instructions", ""),
@@ -92,9 +97,12 @@ def update_recipe(recipe_id, data, user_id, is_admin):
     if not isinstance(data, dict) or not data:
         raise RecipeError("invalid", "a JSON body is required")
 
+    if "description" in data and not isinstance(data["description"], str):
+        raise RecipeError("invalid", "description must be a string")
+
     fields = {
         column: data[column]
-        for column in ("title", "ingredients", "instructions")
+        for column in ("title", "ingredients", "instructions", "description")
         if column in data
     }
 

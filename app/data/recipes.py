@@ -50,7 +50,7 @@ def insert(data, user_id):
 
 
 def update(recipe_id, fields):
-    allowed = ("title", "ingredients", "instructions", "is_public")
+    allowed = ("title", "ingredients", "instructions", "is_public", "description")
 
     if not fields or any(key not in allowed for key in fields):
         raise ValueError("Invalid update fields")

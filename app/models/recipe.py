@@ -7,6 +7,11 @@ class Recipe(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.Text, nullable=False, unique=True)
     ingredients = db.Column(db.Text, nullable=False)
+    description = db.Column(
+        db.Text,
+        nullable=False,
+        server_default=db.text("''")
+    )
     instructions = db.Column(
         db.Text,
         nullable=False,
