@@ -1,5 +1,5 @@
 from flask import Blueprint, g, jsonify, request
-from app.extensions import cache
+from app.extensions import cache, limiter
 from app.services import recipes as service
 
 
@@ -69,6 +69,38 @@ def create_recipes_bp(authenticate_token, token_required):
             user_id = int(payload["sub"])
 
         return jsonify(service.read_recipe(row, user_id)), 200
+
+    @recipes_bp.get("/recipes/<int:recipe_id>/tags")
+    def get_recipe_tags(recipe_id):
+        row = service.find_recipe(recipe_id)
+        user_id = None
+
+        if service.requires_authentication(row):
+            payload, auth_error = authenticate_token()
+
+            if auth_error is not None:
+                return auth_error
+
+            user_id = int(payload["sub"])
+
+        service.read_recipe(row, user_id)
+        return jsonify({"tags": service.list_recipe_tags(row)}), 200
+
+    @recipes_bp.post("/recipes/<int:recipe_id>/tags")
+    @limiter.limit("3 per minute")
+    @token_required
+    def add_recipe_tags(recipe_id):
+        tags, changed = service.add_recipe_tags(
+            recipe_id,
+            request.get_json(silent=True),
+            g.user_id,
+            g.is_admin
+        )
+
+        if changed:
+            cache.delete(PUBLIC_RECIPE_LIST_CACHE_KEY)
+
+        return jsonify({"tags": tags}), 201
 
     @recipes_bp.post("/recipes")
     @token_required

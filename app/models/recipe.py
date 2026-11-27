@@ -32,3 +32,10 @@ class Recipe(db.Model):
         "User",
         back_populates="recipes"
     )
+    tags = db.relationship(
+        "Tag",
+        secondary="recipe_tags",
+        back_populates="recipes",
+        order_by="Tag.name",
+        passive_deletes=True
+    )

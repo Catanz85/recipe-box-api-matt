@@ -1,4 +1,9 @@
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+
 from app.data import recipes as repository
+from app.extensions import db
+from app.models import Tag
 
 
 class RecipeError(Exception):
@@ -138,3 +143,71 @@ def count_recipes(user_id=None):
     return {
         "count": repository.count_visible(user_id)
     }
+
+
+def list_recipe_tags(row):
+    return sorted(tag.name for tag in row.tags)
+
+
+def add_recipe_tags(recipe_id, data, user_id, is_admin):
+    row = find_recipe(recipe_id)
+    require_owner_or_admin(row, user_id, is_admin)
+
+    if (
+        not isinstance(data, dict)
+        or not isinstance(data.get("tags"), list)
+        or not data["tags"]
+    ):
+        raise RecipeError("invalid", "tags must be a non-empty list")
+
+    names = []
+
+    for value in data["tags"]:
+        if not isinstance(value, str):
+            raise RecipeError(
+                "invalid",
+                "tags must be non-empty strings of at most 50 characters"
+            )
+
+        name = value.strip().casefold()
+
+        if not name or len(name) > 50:
+            raise RecipeError(
+                "invalid",
+                "tags must be non-empty strings of at most 50 characters"
+            )
+
+        if name not in names:
+            names.append(name)
+
+    existing_tags = db.session.scalars(
+        select(Tag).where(Tag.name.in_(names))
+    ).all()
+    tags_by_name = {tag.name: tag for tag in existing_tags}
+    attached_names = {tag.name for tag in row.tags}
+    changed = False
+
+    for name in names:
+        tag = tags_by_name.get(name)
+
+        if tag is None:
+            tag = Tag(name=name)
+            db.session.add(tag)
+            tags_by_name[name] = tag
+
+        if name not in attached_names:
+            row.tags.append(tag)
+            attached_names.add(name)
+            changed = True
+
+    if changed:
+        try:
+            db.session.commit()
+        except IntegrityError as exc:
+            db.session.rollback()
+            raise RecipeError(
+                "conflict",
+                "a tag with that name already exists"
+            ) from exc
+
+    return sorted(attached_names), changed

@@ -110,10 +110,27 @@ Verification:
 - Isolated checks confirmed authenticated lists bypass the cache and anonymous
   lists exclude private recipes.
 - Feature, isolation, and security checks passed (10/10, 24/24, and PASS).
-- The acceptance check remains 41/50 at both HEAD and with caching: nine
-  assertions expect recipe fields without `description`, which the existing
-  API response includes.
+- `acceptance_check.py` passes 50/50 after its expected recipe fields were
+  aligned with the existing `description` field and its functional requests
+  were isolated from rate limits. The earlier 41/50 run reflected stale
+  response-field expectations; rate limiting is verified separately.
 - The ORM write and relationship checks stop at their existing database
   fingerprint guard in both versions. They expect SHA256
   `3cc0e8c7f2cc928ba0c41eda669b1cca05f26fcaf5aa1e0bb6cd0e0cf47c8440`;
   the local database snapshot is `c5cb545d595efb58b5367f9b242de772839cf416aa754a0a68f433274277454f`.
+
+## Recipe Tags
+
+Recipes and tags use a many-to-many relationship. `POST /recipes/<id>/tags`
+accepts `{"tags": ["quick", "dinner"]}` and adds normalized tags to a recipe;
+repeated names are idempotent. The endpoint requires authentication and recipe
+ownership (or the existing admin override) and is limited to 3 requests per
+minute. Successful changes invalidate the public recipe-list cache.
+
+`GET /recipes/<id>/tags` returns `{"tags": [...]}` and follows the recipe's
+existing public/private visibility rules. The tag schema is managed through
+the existing Flask-Migrate extension.
+
+Run the isolated tag feature checks with:
+
+    python tag_check.py

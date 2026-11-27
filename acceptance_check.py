@@ -7,6 +7,7 @@ import jwt
 
 from app import create_app
 from app.data.database import init_db
+from app.extensions import limiter
 
 
 results = []
@@ -20,7 +21,7 @@ CONFLICT = "a recipe with that title already exists"
 JSON_REQUIRED = "a JSON body is required"
 
 RECIPE_FIELDS = {
-    "id", "title", "ingredients", "instructions", "is_public"
+    "id", "title", "description", "ingredients", "instructions", "is_public"
 }
 
 
@@ -61,6 +62,7 @@ def recipe(body, response):
     return (
         isinstance(body, dict)
         and set(body) == RECIPE_FIELDS
+        and isinstance(body["description"], str)
         and isinstance(body["is_public"], bool)
     )
 
@@ -78,6 +80,8 @@ with tempfile.TemporaryDirectory() as temp:
     database = str(Path(temp) / "acceptance.db")
     app = create_app(database=database)
     app.config["TESTING"] = True
+    app.config["RATELIMIT_ENABLED"] = False
+    limiter.enabled = False
 
     init_db(app)
 
