@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify
 
 from app.config import CONFIGS
-from app.extensions import db
+from app.extensions import db, migrate
 from app.models import User, Recipe
 from app.middleware import authenticate_token, token_required
 from app.routes.auth import create_auth_bp
@@ -43,7 +43,13 @@ def create_app(config="development", database=None):
     app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{database_path}"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+    if config != "testing" and database is None:
+        database_url = os.environ.get("DATABASE_URL")
+        if database_url:
+            app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+
     db.init_app(app)
+    migrate.init_app(app, db)
 
     app.config["JWT_SECRET"] = os.environ.get("JWT_SECRET")
 
