@@ -120,3 +120,9 @@ def delete_recipe(db, recipe_id, user_id, is_admin):
 
     if repository.delete(db, recipe_id) == 0:
         raise RecipeError("not_found", "recipe not found")
+
+
+def count_recipes(db, user_id=None):
+    return {
+        "count": repository.count_visible(db, user_id)
+    }

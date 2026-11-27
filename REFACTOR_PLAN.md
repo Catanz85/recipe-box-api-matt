@@ -83,3 +83,25 @@ Base URL: http://127.0.0.1:5001. Use distinct test accounts (owner, other user, 
 Total acceptance-list items: 45.
 
 Count is per scenario row, not per endpoint or public-contract category. Some rows group equivalent input variants; the exact historical curl list could not be independently verified. Preserve stateless logout (client discards token; no server logout endpoint) and password hashing as additional non-curl security invariants. Re-run the existing security regression script after any future refactor.
+## Lesson 10 — New Feature Plan
+
+Endpoint: GET /recipes/count
+
+Response: {"count": integer}
+Status: 200 OK
+
+Route: Translate an HTTP GET request and optional Bearer
+token into a service call and return the count as JSON.
+
+Service: Determine the recipe visibility scope from the
+authenticated user identity without granting additional
+private-read privileges to administrators.
+
+Data: Execute a parameterized SQLite COUNT query for
+public recipes and, when authenticated, the user's own
+private recipes.
+
+Missing, invalid, or expired tokens retain the existing
+anonymous recipe-list visibility behavior.
+
+All existing API contracts remain unchanged.

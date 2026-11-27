@@ -79,3 +79,20 @@ def delete(db, recipe_id):
     )
     db.commit()
     return cur.rowcount
+
+
+def count_visible(db, user_id=None):
+    if user_id is None:
+        row = db.execute(
+            "SELECT COUNT(*) FROM recipes "
+            "WHERE is_public = 1"
+        ).fetchone()
+
+    else:
+        row = db.execute(
+            "SELECT COUNT(*) FROM recipes "
+            "WHERE is_public = 1 OR owner_id = ?",
+            (user_id,)
+        ).fetchone()
+
+    return row[0]

@@ -23,6 +23,22 @@ def create_recipes_bp(get_db, authenticate_token, token_required):
         result = service.list_recipes(get_db(), user_id)
         return jsonify(result), 200
 
+    @recipes_bp.get("/recipes/count")
+    def count_recipes():
+        payload, auth_error = authenticate_token()
+
+        user_id = (
+            int(payload["sub"])
+            if auth_error is None
+            else None
+        )
+
+        result = service.count_recipes(
+            get_db(), user_id
+        )
+
+        return jsonify(result), 200
+
     @recipes_bp.get("/recipes/<int:recipe_id>")
     def get_recipe(recipe_id):
         row = service.find_recipe(get_db(), recipe_id)
